@@ -1,0 +1,101 @@
+import os
+import sys
+import StringIO
+import shutil
+import ConfigParser
+import argparse
+import logging
+from urlparse import urlparse
+
+logging.basicConfig(level=logging.DEBUG,
+                    format='%(asctime)s %(levelname)s %(message)s')
+
+
+def is_git_repo(x):
+    return os.path.isdir(os.path.join(x, '.git')) and '.git' in os.listdir(x)
+
+
+def parse_cli():
+    description = """Looks through the 1st-level of directories in the
+                  'projects root' for any git repos and relocates them
+                  to a new directory tree based on their git repo's
+                  origin url.
+                  """
+    parser = argparse.ArgumentParser(description=description)
+    parser.add_argument('-d', '--dry-run', action="store_true", default=False,
+                        help='Will print what actions would be taken.')
+    parser.add_argument('-m', '--move', action="store_true", default=False,
+                        help='Will move the git repos instead of just copy.')
+    parser.add_argument('projects_root',
+                        type=str, action="store", default='.',
+                        help='The root directory where your git repos are stored.')
+    if len(sys.argv) <= 1:
+        parser.print_help()
+    return parser.parse_args()
+
+
+def url_path_to_fs_path(path):
+    """ Removes tilda's which would otherwise have to be escaped and
+    converts to a more fs friendly path. """
+    return path.replace('~', '').replace('/', os.path.sep)
+
+
+class RepoPaths:
+    def __init__(self, path, repo):
+        self.path = path
+        self.repo = repo
+
+
+if __name__ == "__main__":
+    args = parse_cli()
+    repo_paths = []
+    git_repos = filter(is_git_repo, os.listdir(args.projects_root))
+    if len(git_repos) == 0:
+        print "No git repos found."
+        sys.exit(0)
+    for repo in git_repos:
+        git_config_path = os.path.join(repo, '.git', 'config')
+        config = ConfigParser.RawConfigParser(allow_no_value=True)
+        with open(git_config_path) as f:
+            contents = f.read()
+            contents = contents.replace('\t', '')
+            buf = StringIO.StringIO(contents)
+            config.readfp(buf)
+        origin_section = 'remote "origin"'
+        if origin_section in config.sections():
+            origin_url = config.get('remote "origin"', 'url')
+            parsed_url = urlparse(origin_url)
+            if not parsed_url.scheme:
+                if origin_url.startswith('/'):
+                    logging.warning("The url '%s' for repo '%s' is a local path. "
+                                    "Not going to do anything.", origin_url, repo)
+                else:
+                    # Assuming it's using scp-like syntax described in
+                    # the git-clone manpages.
+                    origin_url = 'ssh://' + origin_url
+                    parsed_url = urlparse(origin_url)
+            origin_hostname = parsed_url.hostname
+            origin_path = os.path.dirname(parsed_url.path)
+            path = ''.join([origin_hostname, url_path_to_fs_path(origin_path)])
+            repo_paths.append(RepoPaths(path, repo))
+    if args.dry_run:
+        print('Would create the following directories:')
+        paths_dict = {}
+        path_list = sorted([os.path.join(rp.path, rp.repo) for rp in repo_paths])
+        print('\t'+'\n\t'.join(path_list))
+    else:
+        for rp in repo_paths:
+            if not os.path.isdir(rp.path):
+                os.makedirs(rp.path)
+            else:
+                logging.info("Path '%s' already exists, not creating it.", rp.path)
+            src = os.path.join(args.projects_root, rp.repo)
+            dst = os.path.join(rp.path, rp.repo)
+            if not os.path.isdir(dst):
+                logging.info("Copying '%s' to '%s'", src, dst)
+                shutil.copytree(src, dst, symlinks=True)
+                if args.move:
+                    # Copy first, then move to cautiously prevent lost data if a move fails.
+                    shutil.rmtree(src)
+            else:
+                logging.info("The path '%s' already exists, not copying to it.", dst)
