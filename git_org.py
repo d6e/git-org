@@ -10,27 +10,38 @@ from urlparse import urlparse
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s %(levelname)s %(message)s')
 
+STR_CLONE = 'clone'
+STR_ORGANIZE = 'organize'
+
 
 def is_git_repo(x):
     return os.path.isdir(os.path.join(x, '.git')) and '.git' in os.listdir(x)
 
 
 def parse_cli():
-    description = """Looks through the 1st-level of directories in the
+    organize_help = """Looks through the 1st-level of directories in the
                   'projects root' for any git repos and relocates them
                   to a new directory tree based on their git repo's
                   origin url.
                   """
+    description = "A tool for organizing git repos on your local filesystem."
     parser = argparse.ArgumentParser(description=description)
-    parser.add_argument('-d', '--dry-run', action="store_true", default=False,
+
+    subparsers = parser.add_subparsers(dest="subparser_name") # this line changed
+    clone_parser = subparsers.add_parser(STR_CLONE, help='Will clone a repo according to the organization.')
+    clone_parser.add_argument('url', help='The git remote origin url.')
+    org_parser = subparsers.add_parser(STR_ORGANIZE, help=organize_help)
+    org_parser.add_argument('-d', '--dry-run', action="store_true", default=False,
                         help='Will print what actions would be taken.')
-    parser.add_argument('-m', '--move', action="store_true", default=False,
+    org_parser.add_argument('-m', '--move', action="store_true", default=False,
                         help='Will move the git repos instead of just copy.')
-    parser.add_argument('projects_root',
+    org_parser.add_argument('projects_root',
                         type=str, action="store", default='.',
                         help='The root directory where your git repos are stored.')
+
     if len(sys.argv) <= 1:
         parser.print_help()
+        sys.exit(0)
     return parser.parse_args()
 
 
@@ -46,12 +57,11 @@ class RepoPaths:
         self.repo = repo
 
 
-if __name__ == "__main__":
-    args = parse_cli()
+def organize(args):
     repo_paths = []
     git_repos = filter(is_git_repo, os.listdir(args.projects_root))
     if len(git_repos) == 0:
-        print "No git repos found."
+        print("No git repos found.")
         sys.exit(0)
     for repo in git_repos:
         git_config_path = os.path.join(repo, '.git', 'config')
@@ -99,3 +109,16 @@ if __name__ == "__main__":
                     shutil.rmtree(src)
             else:
                 logging.info("The path '%s' already exists, not copying to it.", dst)
+
+
+def clone(args):
+    pass
+
+
+if __name__ == "__main__":
+    args = parse_cli()
+    subcommand = {
+        STR_CLONE: clone,
+        STR_ORGANIZE: organize,
+    }
+    subcommand[args.subparser_name](args)
