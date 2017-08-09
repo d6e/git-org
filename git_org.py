@@ -45,7 +45,7 @@ def parse_cli():
     return parser.parse_args()
 
 
-def url_path_to_fs_path(path):
+def normalize_path(path):
     """ Removes tilda's which would otherwise have to be escaped and
     converts to a more fs friendly path. """
     return path.replace('~', '').replace('/', os.path.sep)
@@ -86,7 +86,7 @@ def organize(args):
                     parsed_url = urlparse(origin_url)
             origin_hostname = parsed_url.hostname
             origin_path = os.path.dirname(parsed_url.path)
-            path = ''.join([origin_hostname, url_path_to_fs_path(origin_path)])
+            path = ''.join([origin_hostname, normalize_path(origin_path)])
             repo_paths.append(RepoPaths(path, repo))
     if args.dry_run:
         print('Would create the following directories:')
