@@ -53,13 +53,15 @@ def normalize_path(path):
 
 class RepoPaths:
     def __init__(self, path, repo):
-        self.path = path
-        self.repo = repo
+        self.name = os.path.basename(repo)  # name of the repo
+        self.path = path  # path derived from url
+        self.repo = repo  # full path to original location on disk
 
 
 def organize(args):
     repo_paths = []
-    git_repos = filter(is_git_repo, os.listdir(args.projects_root))
+    repos = [os.path.join(args.projects_root, x) for x in os.listdir(args.projects_root)]
+    git_repos = filter(is_git_repo, repos)
     if len(git_repos) == 0:
         print("No git repos found.")
         sys.exit(0)
@@ -95,12 +97,13 @@ def organize(args):
         print('\t' + '\n\t'.join(path_list))
     else:
         for rp in repo_paths:
-            if not os.path.isdir(rp.path):
-                os.makedirs(rp.path)
+            full_repo_path = os.path.join(os.path.abspath(args.projects_root), rp.path)
+            if not os.path.isdir(full_repo_path):
+                os.makedirs(full_repo_path)
             else:
-                logging.info("Path '%s' already exists, not creating it.", rp.path)
+                logging.debug("Repo destination path '%s' already exists, not creating it.", full_repo_path)
             src = os.path.join(args.projects_root, rp.repo)
-            dst = os.path.join(rp.path, rp.repo)
+            dst = os.path.join(full_repo_path, rp.name)
             if not os.path.isdir(dst):
                 logging.info("Copying '%s' to '%s'", src, dst)
                 shutil.copytree(src, dst, symlinks=True)
