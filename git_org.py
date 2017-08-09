@@ -27,17 +27,17 @@ def parse_cli():
     description = "A tool for organizing git repos on your local filesystem."
     parser = argparse.ArgumentParser(description=description)
 
-    subparsers = parser.add_subparsers(dest="subparser_name") # this line changed
+    subparsers = parser.add_subparsers(dest="subparser_name")  # this line changed
     clone_parser = subparsers.add_parser(STR_CLONE, help='Will clone a repo according to the organization.')
     clone_parser.add_argument('url', help='The git remote origin url.')
     org_parser = subparsers.add_parser(STR_ORGANIZE, help=organize_help)
     org_parser.add_argument('-d', '--dry-run', action="store_true", default=False,
-                        help='Will print what actions would be taken.')
+                            help='Will print what actions would be taken.')
     org_parser.add_argument('-m', '--move', action="store_true", default=False,
-                        help='Will move the git repos instead of just copy.')
+                            help='Will move the git repos instead of just copy.')
     org_parser.add_argument('projects_root',
-                        type=str, action="store", default='.',
-                        help='The root directory where your git repos are stored.')
+                            type=str, action="store", default='.',
+                            help='The root directory where your git repos are stored.')
 
     if len(sys.argv) <= 1:
         parser.print_help()
@@ -92,7 +92,7 @@ def organize(args):
         print('Would create the following directories:')
         paths_dict = {}
         path_list = sorted([os.path.join(rp.path, rp.repo) for rp in repo_paths])
-        print('\t'+'\n\t'.join(path_list))
+        print('\t' + '\n\t'.join(path_list))
     else:
         for rp in repo_paths:
             if not os.path.isdir(rp.path):
