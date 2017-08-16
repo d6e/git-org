@@ -1,11 +1,12 @@
 import os
 import sys
-import StringIO
 import shutil
-import ConfigParser
+import configparser
 import argparse
 import logging
-from urlparse import urlparse
+from urllib.parse import urlparse, ParseResult
+from typing import Optional, Tuple
+
 
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s %(levelname)s %(message)s')
@@ -14,11 +15,11 @@ STR_CLONE = 'clone'
 STR_ORGANIZE = 'organize'
 
 
-def is_git_repo(x):
+def is_git_repo(x: str) -> bool:
     return os.path.isdir(os.path.join(x, '.git')) and '.git' in os.listdir(x)
 
 
-def parse_cli():
+def parse_cli() -> Tuple[str, str, bool, bool]:
     organize_help = """Looks through the 1st-level of directories in the
                   'projects root' for any git repos and relocates them
                   to a new directory tree based on their git repo's
@@ -42,86 +43,99 @@ def parse_cli():
     if len(sys.argv) <= 1:
         parser.print_help()
         sys.exit(0)
-    return parser.parse_args()
+    args = parser.parse_args()
+    return str(args.subparser_name), str(args.projects_root), bool(args.move), bool(args.dry_run)
 
 
-def normalize_path(path):
+def normalize_path(path: str) -> str:
     """ Removes tilda's which would otherwise have to be escaped and
     converts to a more fs friendly path. """
     return path.replace('~', '').replace('/', os.path.sep)
 
 
 class RepoPaths:
-    def __init__(self, path, repo):
+    def __init__(self, path: str, repo: str) -> None:
         self.name = os.path.basename(repo)  # name of the repo
         self.path = path  # path derived from url
         self.repo = repo  # full path to original location on disk
 
 
-def organize(args):
+def _read_git_config(git_repo_path: str) -> configparser.RawConfigParser:
+    git_config_path = os.path.join(git_repo_path, '.git', 'config')
+    config = configparser.RawConfigParser(allow_no_value=True)
+    config.read(git_config_path)
+    return config
+
+
+def _extract_origin_path(config: configparser.RawConfigParser, repo_path: str) -> Optional[ParseResult]:
+    origin_section = 'remote "origin"'
+    if origin_section in config.sections():
+        origin_url = config.get('remote "origin"', 'url')
+        parsed_url = urlparse(origin_url)
+        if not parsed_url.scheme:
+            if origin_url.startswith('/'):
+                logging.warning("The url '%s' for repo '%s' is a local path. "
+                                "Not going to do anything.", origin_url, repo_path)
+            else:
+                # Assuming it's using scp-like syntax described in
+                # the git-clone manpages.
+                origin_url = 'ssh://' + origin_url
+                parsed_url = urlparse(origin_url)
+        return parsed_url
+    else:
+        return None
+
+
+def organize(projects_root: str, move: bool, dry_run: bool) -> None:
     repo_paths = []
-    repos = [os.path.join(args.projects_root, x) for x in os.listdir(args.projects_root)]
-    git_repos = filter(is_git_repo, repos)
+    repos = [os.path.join(projects_root, x) for x in os.listdir(projects_root)]
+    git_repos = list(filter(is_git_repo, repos))
     if len(git_repos) == 0:
         print("No git repos found.")
         sys.exit(0)
     for repo in git_repos:
-        git_config_path = os.path.join(repo, '.git', 'config')
-        config = ConfigParser.RawConfigParser(allow_no_value=True)
-        with open(git_config_path) as f:
-            contents = f.read()
-            contents = contents.replace('\t', '')
-            buf = StringIO.StringIO(contents)
-            config.readfp(buf)
-        origin_section = 'remote "origin"'
-        if origin_section in config.sections():
-            origin_url = config.get('remote "origin"', 'url')
-            parsed_url = urlparse(origin_url)
-            if not parsed_url.scheme:
-                if origin_url.startswith('/'):
-                    logging.warning("The url '%s' for repo '%s' is a local path. "
-                                    "Not going to do anything.", origin_url, repo)
-                else:
-                    # Assuming it's using scp-like syntax described in
-                    # the git-clone manpages.
-                    origin_url = 'ssh://' + origin_url
-                    parsed_url = urlparse(origin_url)
-            origin_hostname = parsed_url.hostname
+        config = _read_git_config(repo)
+        parsed_url = _extract_origin_path(config, repo)
+        if parsed_url:
             origin_path = os.path.dirname(parsed_url.path)
+            origin_hostname = parsed_url.hostname
             path = ''.join([origin_hostname, normalize_path(origin_path)])
             repo_paths.append(RepoPaths(path, repo))
-    if args.dry_run:
+    if dry_run:
         print('Would create the following directories:')
-        paths_dict = {}
         path_list = sorted([os.path.join(rp.path, rp.repo) for rp in repo_paths])
         print('\t' + '\n\t'.join(path_list))
     else:
         for rp in repo_paths:
-            full_repo_path = os.path.join(os.path.abspath(args.projects_root), rp.path)
+            full_repo_path = os.path.join(os.path.abspath(projects_root), rp.path)
             if not os.path.isdir(full_repo_path):
                 os.makedirs(full_repo_path)
             else:
                 logging.debug("Repo destination path '%s' already exists, not creating it.", full_repo_path)
-            src = os.path.join(args.projects_root, rp.repo)
+            src = os.path.join(projects_root, rp.repo)
             dst = os.path.join(full_repo_path, rp.name)
             if not os.path.isdir(dst):
                 logging.info("Copying '%s' to '%s'", src, dst)
                 shutil.copytree(src, dst, symlinks=True)
-                if args.move:
+                if move:
                     # Copy first, then move to cautiously prevent lost data if a move fails.
                     shutil.rmtree(src)
             else:
                 logging.info("The path '%s' already exists, not copying to it.", dst)
 
 
-def clone(args):
+def clone(projects_root: str, move: bool, dry_run: bool) -> None:
     pass
 
 
-if __name__ == "__main__":
-    args = parse_cli()
+def main() -> None:
+    subparser_name, projects_root, move, dry_run = parse_cli()
     subcommand = {
         STR_CLONE: clone,
         STR_ORGANIZE: organize,
     }
-    subcommand[args.subparser_name](args)
+    subcommand[subparser_name](projects_root, move, dry_run)
+
+
+if __name__ == "__main__":
+    main()
