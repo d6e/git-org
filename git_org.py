@@ -5,7 +5,7 @@ import configparser
 import argparse
 import logging
 from urllib.parse import urlparse, ParseResult
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 
 
 logging.basicConfig(level=logging.DEBUG,
@@ -53,13 +53,6 @@ def normalize_path(path: str) -> str:
     return path.replace('~', '').replace('/', os.path.sep)
 
 
-class RepoPaths:
-    def __init__(self, path: str, repo: str) -> None:
-        self.name = os.path.basename(repo)  # name of the repo
-        self.path = path  # path derived from url
-        self.repo = repo  # full path to original location on disk
-
-
 def _read_git_config(git_repo_path: str) -> configparser.RawConfigParser:
     git_config_path = os.path.join(git_repo_path, '.git', 'config')
     config = configparser.RawConfigParser(allow_no_value=True)
@@ -86,13 +79,49 @@ def _extract_origin_path(config: configparser.RawConfigParser, repo_path: str) -
         return None
 
 
+def filter_nested_git_repos(git_repos: List[str]) -> List[str]:
+    git_parents = []  # type: List[str]
+    for repo in git_repos:
+        append = True
+        for parent in git_parents:
+            if parent in repo:
+                append = False
+        if append:
+            git_parents.append(repo)
+    return git_parents
+
+
+def find_git_repos(root: str) -> List[str]:
+    """
+    Returns a list of git repo directories.
+    """
+    git_repos = []
+    for path, dirs, files in os.walk(root):
+        if '.git' in dirs:
+            git_repos.append(path)
+    return git_repos
+
+
+def print_fs_changes(repo_paths: List[Tuple[str, str]]) -> None:
+    print('\n'.join([' -> '.join(rp) for rp in repo_paths]))
+
+
 def organize(projects_root: str, move: bool, dry_run: bool) -> None:
-    repo_paths = []
-    repos = [os.path.join(projects_root, x) for x in os.listdir(projects_root)]
-    git_repos = list(filter(is_git_repo, repos))
+    """ The 'organize' command does the following:
+    1. Finds all git repos under the provided root (not including nested git repos).
+    2. Reads and parses the git config of each git repo to determine the destination path.
+    3. Proposes the file system changes to the user and prompts for approval.
+    4. Finally, it copies each old git repo path to the new git repo path and deletes the old repo
+    if the 'move' cli flag is specified. """
+    logging.info("Using projects_root: %s", projects_root)
+    git_repos = find_git_repos(projects_root)
+    git_repos = filter_nested_git_repos(git_repos)
+    logging.info("Found the following non-nested repos: %s", git_repos)
     if len(git_repos) == 0:
-        print("No git repos found.")
+        print("No git repos found. Maybe change your 'projects_root'?")
         sys.exit(0)
+    # Read each git repo and determine the destination path by parsing the git remote origin
+    repo_paths = []  # type: List[Tuple[str, str]]
     for repo in git_repos:
         config = _read_git_config(repo)
         parsed_url = _extract_origin_path(config, repo)
@@ -100,28 +129,30 @@ def organize(projects_root: str, move: bool, dry_run: bool) -> None:
             origin_path = os.path.dirname(parsed_url.path)
             origin_hostname = parsed_url.hostname
             path = ''.join([origin_hostname, normalize_path(origin_path)])
-            repo_paths.append(RepoPaths(path, repo))
+            repo_paths.append((repo, os.path.join(projects_root, path)))
+
+    print("The proposed filesystem changes:\n")
+    print_fs_changes(repo_paths)
     if dry_run:
-        print('Would create the following directories:')
-        path_list = sorted([os.path.join(rp.path, rp.repo) for rp in repo_paths])
-        print('\t' + '\n\t'.join(path_list))
+        answer = False
     else:
-        for rp in repo_paths:
-            full_repo_path = os.path.join(os.path.abspath(projects_root), rp.path)
-            if not os.path.isdir(full_repo_path):
-                os.makedirs(full_repo_path)
-            else:
-                logging.debug("Repo destination path '%s' already exists, not creating it.", full_repo_path)
-            src = os.path.join(projects_root, rp.repo)
-            dst = os.path.join(full_repo_path, rp.name)
+        answer = input("\nAccept? [y/N]").lower() in ['y', 'yes']
+    if answer:
+        for repo_path in repo_paths:
+            src, dst = repo_path
             if not os.path.isdir(dst):
+                os.makedirs(dst)
+            else:
+                logging.info("Repo destination path '%s' already exists, not creating it.", dst)
+            if is_git_repo(dst):
+                logging.info("Git repo '%s' already exists, not copying...", dst)
+            else:
                 logging.info("Copying '%s' to '%s'", src, dst)
-                shutil.copytree(src, dst, symlinks=True)
+                dst_with_reponame = os.path.join(dst, os.path.basename(src))
+                shutil.copytree(src, dst_with_reponame, symlinks=True)
                 if move:
                     # Copy first, then move to cautiously prevent lost data if a move fails.
                     shutil.rmtree(src)
-            else:
-                logging.info("The path '%s' already exists, not copying to it.", dst)
 
 
 def clone(projects_root: str, move: bool, dry_run: bool) -> None:
