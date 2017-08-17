@@ -115,8 +115,8 @@ def url_to_fs_path(root: str, url: str) -> str:
     return os.path.join(root, url)
 
 
-def print_fs_changes(repo_paths: List[Tuple[str, str]]) -> None:
-    print('\n'.join([' -> '.join(rp) for rp in repo_paths]))
+def print_fs_changes(fs_changes: List[Tuple[str, str]]) -> None:
+    print('\n'.join([' -> '.join(rp) for rp in fs_changes]))
 
 
 def organize(projects_root: str, move: bool, dry_run: bool) -> None:
@@ -134,28 +134,28 @@ def organize(projects_root: str, move: bool, dry_run: bool) -> None:
         print("No git repos found. Maybe change your 'projects_root'?")
         sys.exit(0)
     # Read each git repo and determine the destination path by parsing the git remote origin
-    repo_paths = []  # type: List[Tuple[str, str]]
+    fs_changes = []  # type: List[Tuple[str, str]]
     for repo in git_repos:
         config = _read_git_config(repo)
         origin_url = _extract_origin_url(config, repo)
         if origin_url:
             new_fs_path = url_to_fs_path(projects_root, origin_url)
-            repo_paths.append((repo, new_fs_path))
+            fs_changes.append((repo, new_fs_path))
 
     # Filter any non-changes
-    repo_paths = filter(lambda x: x[0] != x[1], repo_paths)
+    fs_changes = list(filter(lambda x: x[0] != x[1], fs_changes))
 
     print("The proposed filesystem changes:\n")
-    print_fs_changes(repo_paths)
+    print_fs_changes(fs_changes)
     if dry_run:
         answer = False
     else:
         answer = input("\nAccept? [y/N]").lower() in ['y', 'yes']
     if answer:
-        for repo_path in repo_paths:
-            src, dst = repo_path
             if not os.path.isdir(dst):
                 os.makedirs(os.path.dirname(dst))
+        for fs_change in fs_changes:
+            src, dst = fs_change
             else:
                 logging.info("Repo destination path '%s' already exists, not creating it.", dst)
             if is_git_repo(dst):
