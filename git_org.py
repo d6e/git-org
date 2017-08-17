@@ -34,8 +34,6 @@ def parse_cli() -> Tuple[str, str, bool, bool]:
     org_parser = subparsers.add_parser(STR_ORGANIZE, help=organize_help)
     org_parser.add_argument('-d', '--dry-run', action="store_true", default=False,
                             help='Will print what actions would be taken.')
-    org_parser.add_argument('-m', '--move', action="store_true", default=False,
-                            help='Will move the git repos instead of just copy.')
     org_parser.add_argument('projects_root',
                             type=str, action="store", default='.',
                             help='The root directory where your git repos are stored.')
@@ -44,7 +42,7 @@ def parse_cli() -> Tuple[str, str, bool, bool]:
         parser.print_help()
         sys.exit(0)
     args = parser.parse_args()
-    return str(args.subparser_name), str(args.projects_root), bool(args.move), bool(args.dry_run)
+    return str(args.subparser_name), str(args.projects_root), bool(args.dry_run)
 
 
 def _read_git_config(git_repo_path: str) -> configparser.RawConfigParser:
@@ -119,7 +117,7 @@ def print_fs_changes(fs_changes: List[Tuple[str, str]]) -> None:
     print('\n'.join([' -> '.join(rp) for rp in fs_changes]))
 
 
-def organize(projects_root: str, move: bool, dry_run: bool) -> None:
+def organize(projects_root: str, dry_run: bool) -> None:
     """ The 'organize' command does the following:
     1. Finds all git repos under the provided root (not including nested git repos).
     2. Reads and parses the git config of each git repo to determine the destination path.
@@ -169,17 +167,17 @@ def organize(projects_root: str, move: bool, dry_run: bool) -> None:
                     shutil.rmtree(src)
 
 
-def clone(projects_root: str, move: bool, dry_run: bool) -> None:
+def clone(projects_root: str, dry_run: bool) -> None:
     pass
 
 
 def main() -> None:
-    subparser_name, projects_root, move, dry_run = parse_cli()
+    subparser_name, projects_root, dry_run = parse_cli()
     subcommand = {
         STR_CLONE: clone,
         STR_ORGANIZE: organize,
     }
-    subcommand[subparser_name](projects_root, move, dry_run)
+    subcommand[subparser_name](projects_root, dry_run)
 
 
 if __name__ == "__main__":
