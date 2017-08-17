@@ -4,7 +4,7 @@ import shutil
 import configparser
 import argparse
 import logging
-from urllib.parse import urlparse, ParseResult
+import re
 from typing import Optional, Tuple, List
 
 
@@ -47,12 +47,6 @@ def parse_cli() -> Tuple[str, str, bool, bool]:
     return str(args.subparser_name), str(args.projects_root), bool(args.move), bool(args.dry_run)
 
 
-def normalize_path(path: str) -> str:
-    """ Removes tilda's which would otherwise have to be escaped and
-    converts to a more fs friendly path. """
-    return path.replace('~', '').replace('/', os.path.sep)
-
-
 def _read_git_config(git_repo_path: str) -> configparser.RawConfigParser:
     git_config_path = os.path.join(git_repo_path, '.git', 'config')
     config = configparser.RawConfigParser(allow_no_value=True)
@@ -60,22 +54,12 @@ def _read_git_config(git_repo_path: str) -> configparser.RawConfigParser:
     return config
 
 
-def _extract_origin_path(config: configparser.RawConfigParser, repo_path: str) -> Optional[ParseResult]:
+def _extract_origin_url(config: configparser.RawConfigParser, repo_path: str) -> Optional[str]:
     origin_section = 'remote "origin"'
     if origin_section in config.sections():
-        origin_url = config.get('remote "origin"', 'url')
-        parsed_url = urlparse(origin_url)
-        if not parsed_url.scheme:
-            if origin_url.startswith('/'):
-                logging.warning("The url '%s' for repo '%s' is a local path. "
-                                "Not going to do anything.", origin_url, repo_path)
-            else:
-                # Assuming it's using scp-like syntax described in
-                # the git-clone manpages.
-                origin_url = 'ssh://' + origin_url
-                parsed_url = urlparse(origin_url)
-        return parsed_url
+        return config.get('remote "origin"', 'url')
     else:
+        logging.warning("No origin found for '%s'", repo_path)
         return None
 
 
@@ -102,6 +86,35 @@ def find_git_repos(root: str) -> List[str]:
     return git_repos
 
 
+def url_to_fs_path(root: str, url: str) -> str:
+    """ Transforms the url for use as a filesystem path. """
+    # If the url is a local filesystem url, then we ignore.
+    if url.startswith('/') or url.startswith('file://'):
+        return url
+    # Trim scheme: it is not relevant to us.
+    if '://' in url:
+        url = url.split('://')[1]
+    # Trim user: it is not relevant to us.
+    if '@' in url:
+        url = url.split('@')[1]
+    # Trim .git part of url repo ending
+    if url.endswith('.git') or url.endswith('.git/'):
+        url = url.split('.git')[0]
+    # Replace the port number
+    url = re.sub(r":[0-9]{1,4}/", "/", url)
+    # Handle the edge case where no port is specified.
+    url = url.replace(':/', '/')
+    # Replace any colons used with users
+    url = url.replace(':', '/')
+    # Replace remove tildes
+    url = url.replace('~', '')
+    # Remove junk from system configuration TODO: this should go in a config or something
+    url = url.replace('scm/', '')
+    # Ensure slashes use the system-native separator
+    url = url.replace('/', os.path.sep).replace('\\', os.path.sep)
+    return os.path.join(root, url)
+
+
 def print_fs_changes(repo_paths: List[Tuple[str, str]]) -> None:
     print('\n'.join([' -> '.join(rp) for rp in repo_paths]))
 
@@ -124,12 +137,13 @@ def organize(projects_root: str, move: bool, dry_run: bool) -> None:
     repo_paths = []  # type: List[Tuple[str, str]]
     for repo in git_repos:
         config = _read_git_config(repo)
-        parsed_url = _extract_origin_path(config, repo)
-        if parsed_url:
-            origin_path = os.path.dirname(parsed_url.path)
-            origin_hostname = parsed_url.hostname
-            path = ''.join([origin_hostname, normalize_path(origin_path)])
-            repo_paths.append((repo, os.path.join(projects_root, path)))
+        origin_url = _extract_origin_url(config, repo)
+        if origin_url:
+            new_fs_path = url_to_fs_path(projects_root, origin_url)
+            repo_paths.append((repo, new_fs_path))
+
+    # Filter any non-changes
+    repo_paths = filter(lambda x: x[0] != x[1], repo_paths)
 
     print("The proposed filesystem changes:\n")
     print_fs_changes(repo_paths)
@@ -141,15 +155,14 @@ def organize(projects_root: str, move: bool, dry_run: bool) -> None:
         for repo_path in repo_paths:
             src, dst = repo_path
             if not os.path.isdir(dst):
-                os.makedirs(dst)
+                os.makedirs(os.path.dirname(dst))
             else:
                 logging.info("Repo destination path '%s' already exists, not creating it.", dst)
             if is_git_repo(dst):
                 logging.info("Git repo '%s' already exists, not copying...", dst)
             else:
                 logging.info("Copying '%s' to '%s'", src, dst)
-                dst_with_reponame = os.path.join(dst, os.path.basename(src))
-                shutil.copytree(src, dst_with_reponame, symlinks=True)
+                shutil.copytree(src, dst, symlinks=True)
                 if move:
                     # Copy first, then move to cautiously prevent lost data if a move fails.
                     shutil.rmtree(src)
