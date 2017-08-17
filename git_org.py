@@ -152,10 +152,11 @@ def organize(projects_root: str, move: bool, dry_run: bool) -> None:
     else:
         answer = input("\nAccept? [y/N]").lower() in ['y', 'yes']
     if answer:
-            if not os.path.isdir(dst):
-                os.makedirs(os.path.dirname(dst))
         for fs_change in fs_changes:
             src, dst = fs_change
+            parent_dir = os.path.dirname(dst)
+            if not os.path.isdir(parent_dir):
+                os.makedirs(parent_dir)
             else:
                 logging.info("Repo destination path '%s' already exists, not creating it.", dst)
             if is_git_repo(dst):
