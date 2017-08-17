@@ -129,7 +129,7 @@ def organize(projects_root: str, dry_run: bool) -> None:
     git_repos = filter_nested_git_repos(git_repos)
     logging.info("Found the following non-nested repos: %s", git_repos)
     if len(git_repos) == 0:
-        print("No git repos found. Maybe change your 'projects_root'?")
+        print("No git repos found. Maybe change your 'projects_root'? (projects_root='{}')".format(projects_root))
         sys.exit(0)
     # Read each git repo and determine the destination path by parsing the git remote origin
     fs_changes = []  # type: List[Tuple[str, str]]
@@ -158,7 +158,7 @@ def organize(projects_root: str, dry_run: bool) -> None:
             else:
                 logging.info("Repo destination path '%s' already exists, not creating it.", dst)
             if is_git_repo(dst):
-                logging.info("Git repo '%s' already exists, not copying...", dst)
+                logging.warning("Git repo '%s' already exists, not moving...", dst)
             else:
                 logging.info("Copying '%s' to '%s'", src, dst)
                 shutil.copytree(src, dst, symlinks=True)
