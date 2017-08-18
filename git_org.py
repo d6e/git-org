@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 import shutil
 import configparser
 import argparse
@@ -117,7 +118,34 @@ def print_fs_changes(fs_changes: List[Tuple[str, str]]) -> None:
     print('\n'.join([' -> '.join(rp) for rp in fs_changes]))
 
 
-def organize(projects_root: str, dry_run: bool) -> None:
+def mv_to_tmp(projects_root: str, src: str) -> str:
+    """ Moves the directory to a temporary staging directory that is created if it doesn't exist. """
+    timestamp = int(time.time())
+    tmp_dirname = "git-org-unresolved-{}".format(timestamp)
+    tmp_path = os.path.join(projects_root, tmp_dirname)
+    if not os.path.isdir(tmp_path):
+        os.makedirs(tmp_path)
+    shutil.move(src, tmp_path)
+    return os.path.join(tmp_path, os.path.basename(src))
+
+
+def determine_fs_changes(projects_root: str, git_repos: List[str]) -> List[Tuple[str, str]]:
+    fs_changes = []
+    for repo in git_repos:
+        config = _read_git_config(repo)
+        origin_url = _extract_origin_url(config, repo)
+        if origin_url:
+            new_fs_path = url_to_fs_path(projects_root, origin_url)
+            fs_changes.append((repo, new_fs_path))
+    return fs_changes
+
+
+def prompt_user_approval() -> bool:
+    """ Asks the user if it's acceptable. """
+    return input("\nAccept? [y/N]").lower() in ['y', 'yes']
+
+
+def organize(projects_root: str, dry_run: bool=False) -> None:
     """ The 'organize' command does the following:
     1. Finds all git repos under the provided root (not including nested git repos).
     2. Reads and parses the git config of each git repo to determine the destination path.
@@ -132,13 +160,7 @@ def organize(projects_root: str, dry_run: bool) -> None:
         print("No git repos found. Maybe change your 'projects_root'? (projects_root='{}')".format(projects_root))
         sys.exit(0)
     # Read each git repo and determine the destination path by parsing the git remote origin
-    fs_changes = []  # type: List[Tuple[str, str]]
-    for repo in git_repos:
-        config = _read_git_config(repo)
-        origin_url = _extract_origin_url(config, repo)
-        if origin_url:
-            new_fs_path = url_to_fs_path(projects_root, origin_url)
-            fs_changes.append((repo, new_fs_path))
+    fs_changes = determine_fs_changes(projects_root, git_repos)
 
     # Filter any non-changes
     fs_changes = list(filter(lambda x: x[0] != x[1], fs_changes))
@@ -148,7 +170,7 @@ def organize(projects_root: str, dry_run: bool) -> None:
     if dry_run:
         answer = False
     else:
-        answer = input("\nAccept? [y/N]").lower() in ['y', 'yes']
+        answer = prompt_user_approval()
     if answer:
         for fs_change in fs_changes:
             src, dst = fs_change
@@ -160,11 +182,12 @@ def organize(projects_root: str, dry_run: bool) -> None:
             if is_git_repo(dst):
                 logging.warning("Git repo '%s' already exists, not moving...", dst)
             else:
-                logging.info("Copying '%s' to '%s'", src, dst)
-                shutil.copytree(src, dst, symlinks=True)
-                if move:
-                    # Copy first, then move to cautiously prevent lost data if a move fails.
-                    shutil.rmtree(src)
+                logging.info("Moving '%s' to '%s'", src, dst)
+                shutil.move(src, dst)
+                # shutil.copytree(src, dst, symlinks=True)
+                # if move:
+                #     # Copy first, then move to cautiously prevent lost data if a move fails.
+                #     shutil.rmtree(src)
 
 
 def clone(projects_root: str, dry_run: bool) -> None:

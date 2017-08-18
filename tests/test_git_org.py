@@ -1,20 +1,106 @@
+import os
 import pytest
-from git_org import url_to_fs_path
+import shutil
+import git_org
+from typing import List, Tuple
+
+CONFIG = """
+[core]
+        repositoryformatversion = 0
+        filemode = true
+        bare = false
+        logallrefupdates = true
+        ignorecase = true
+        precomposeunicode = true
+[remote "origin"]
+        url = {url}
+        fetch = +refs/heads/*:refs/remotes/origin/*
+[branch "master"]
+        remote = origin
+        merge = refs/heads/master
+"""
 
 
 @pytest.mark.parametrize(
     "url, expect",
     [
-        ('ssh://git@github.com:d6e/git-org.git', 'myroot/github.com/d6e/git-org'),
-        ('ssh://git@git.example.com:7999/~user/mything.git', 'myroot/git.example.com/user/mything'),
-        ('http://github.com/rust-lang/rust.git', 'myroot/github.com/rust-lang/rust'),
-        ('https://user@git.example.com/scm/~user/rust.git', 'myroot/git.example.com/user/rust'),
-        ('ftps://host.xz:9999/path/to/repo.git/', 'myroot/host.xz/path/to/repo'),
+        ('ssh://git@github.com:d6e/git-org.git',
+         'myroot/github.com/d6e/git-org'),
+        ('ssh://git@git.example.com:7999/~user/mything.git',
+         'myroot/git.example.com/user/mything'),
+        ('http://github.com/rust-lang/rust.git',
+         'myroot/github.com/rust-lang/rust'),
+        ('https://user@git.example.com/scm/~user/rust.git',
+         'myroot/git.example.com/user/rust'),
+        ('ftps://host.xz:9999/path/to/repo.git/',
+         'myroot/host.xz/path/to/repo'),
         ('ssh_host:chip8.git', 'myroot/ssh_host/chip8'),
-        ('user@host.xz:/~user/path/to/repo.git/', 'myroot/host.xz/user/path/to/repo'),
+        ('user@host.xz:/~user/path/to/repo.git/',
+         'myroot/host.xz/user/path/to/repo'),
         ('file:///path/to/repo.git/', 'file:///path/to/repo.git/'),  # ignore
-        ('/home/absolute/path/to/myproject', '/home/absolute/path/to/myproject'),  # ignore
+        ('/home/absolute/path/to/myproject',
+         '/home/absolute/path/to/myproject'),  # ignore
     ])
 def test_url_to_fs_path(url, expect):
-    new_path = url_to_fs_path('myroot', url)
+    new_path = git_org.url_to_fs_path('myroot', url)
     assert expect == new_path
+
+
+def _mk_repo(projects_root: str, repo_name: str,
+             origin_remote_url: str) -> str:
+    git_config_dir = os.path.join(projects_root, repo_name, '.git')
+    os.makedirs(git_config_dir)
+    config_path = os.path.join(git_config_dir, 'config')
+    with open(config_path, 'w') as f:
+        f.write(CONFIG.format(url=origin_remote_url))
+    return config_path
+
+
+@pytest.fixture()
+def projects_root(request, tmpdir) -> str:
+    tmp_root = tmpdir.mkdir('myroot').strpath
+    _mk_repo(tmp_root, 'myrepo', 'github.com:d6e/myrepo.git')
+    _mk_repo(tmp_root, 'notrust', 'http://github.com/rust-lang/rust.git')
+    _mk_repo(tmp_root, 'notrust2', 'http://github.com/rust-lang/rust2.git')
+    request.addfinalizer(lambda: shutil.rmtree(tmp_root))
+    return tmp_root
+
+
+def _get_fs(projects_root: str) -> List[Tuple[str, List[str], List[str]]]:
+    fs = []
+    for path, dirs, files in os.walk(projects_root):
+        fs.append((path, dirs, files))
+    return fs
+
+
+def test_organize(projects_root, monkeypatch):
+    """ An integration test for the organize command. Tests known edge-cases as well. """
+    monkeypatch.setattr(git_org, 'prompt_user_approval', lambda: True)
+    monkeypatch.setattr(git_org, 'print_fs_changes', lambda x: x)
+    expected = [
+        ('/private/var/folders/wn/c8618y6s5fb4vd0dmj3c0xnr0000gn/T/pytest-of-djenkins/pytest-25/test_organize0/myroot',
+         ['github.com', 'notrust2'], []),
+        ('/private/var/folders/wn/c8618y6s5fb4vd0dmj3c0xnr0000gn/T/pytest-of-djenkins/pytest-25/test_organize0/myroot/github.com',
+         ['d6e', 'rust-lang'], []),
+        ('/private/var/folders/wn/c8618y6s5fb4vd0dmj3c0xnr0000gn/T/pytest-of-djenkins/pytest-25/test_organize0/myroot/github.com/d6e',
+         ['myrepo'], []),
+        ('/private/var/folders/wn/c8618y6s5fb4vd0dmj3c0xnr0000gn/T/pytest-of-djenkins/pytest-25/test_organize0/myroot/github.com/d6e/myrepo',
+         ['.git'], []),
+        ('/private/var/folders/wn/c8618y6s5fb4vd0dmj3c0xnr0000gn/T/pytest-of-djenkins/pytest-25/test_organize0/myroot/github.com/d6e/myrepo/.git',
+         [], ['config']),
+        ('/private/var/folders/wn/c8618y6s5fb4vd0dmj3c0xnr0000gn/T/pytest-of-djenkins/pytest-25/test_organize0/myroot/github.com/rust-lang',
+         ['rust'], []),
+        ('/private/var/folders/wn/c8618y6s5fb4vd0dmj3c0xnr0000gn/T/pytest-of-djenkins/pytest-25/test_organize0/myroot/github.com/rust-lang/rust',
+         ['.git'], []),
+        ('/private/var/folders/wn/c8618y6s5fb4vd0dmj3c0xnr0000gn/T/pytest-of-djenkins/pytest-25/test_organize0/myroot/github.com/rust-lang/rust/.git',
+         [], ['config']),
+        ('/private/var/folders/wn/c8618y6s5fb4vd0dmj3c0xnr0000gn/T/pytest-of-djenkins/pytest-25/test_organize0/myroot/github.com/rust-lang/rust2',
+         ['.git'], []),
+        ('/private/var/folders/wn/c8618y6s5fb4vd0dmj3c0xnr0000gn/T/pytest-of-djenkins/pytest-25/test_organize0/myroot/github.com/rust-lang/rust2/.git',
+         [], ['config'])
+    ]
+    pre_org_fs = _get_fs(projects_root)
+    orgd = git_org.organize(projects_root)
+    post_org_fs = _get_fs(projects_root)
+    assert post_org_fs == expected
+    pytest.set_trace()
