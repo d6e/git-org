@@ -62,12 +62,31 @@ def _extract_origin_url(config: configparser.RawConfigParser, repo_path: str) ->
         return None
 
 
+def _is_sublist(lst1: List[str], lst2: List[str]) -> bool:
+    def get_all_in(one, another):
+        for element in one:
+            if element in another:
+                yield element
+
+    for x1, x2 in zip(get_all_in(lst1, lst2), get_all_in(lst2, lst1)):
+        if x1 != x2:
+            return False
+
+
 def filter_nested_git_repos(git_repos: List[str]) -> List[str]:
     git_parents = []  # type: List[str]
+    git_repos.sort()
     for repo in git_repos:
         append = True
         for parent in git_parents:
-            if parent in repo:
+            split_parent = parent.split('/')
+            split_repo = repo.split('/')
+            # if 'rust' in parent:
+            # import pdb;pdb.set_trace()
+            # for i in range(len(split_parent)):
+            #     if split_repo[i] != split_parent[i]:
+
+            if _is_sublist(split_repo, split_parent):
                 append = False
         if append:
             git_parents.append(repo)
@@ -134,7 +153,7 @@ def determine_fs_changes(projects_root: str, git_repos: List[str]) -> List[Tuple
     for repo in git_repos:
         config = _read_git_config(repo)
         origin_url = _extract_origin_url(config, repo)
-        if origin_url:
+        if origin_url is not None:
             new_fs_path = url_to_fs_path(projects_root, origin_url)
             fs_changes.append((repo, new_fs_path))
     return fs_changes
@@ -175,6 +194,7 @@ def organize(projects_root: str, dry_run: bool=False) -> None:
         for fs_change in fs_changes:
             src, dst = fs_change
             parent_dir = os.path.dirname(dst)
+
             if not os.path.isdir(parent_dir):
                 os.makedirs(parent_dir)
             else:
