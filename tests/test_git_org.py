@@ -20,6 +20,8 @@ CONFIG = """
         merge = refs/heads/master
 """
 
+ROOT = 'myroot'
+
 
 @pytest.mark.parametrize(
     "url, expect",
@@ -42,7 +44,7 @@ CONFIG = """
          '/home/absolute/path/to/myproject'),  # ignore
     ])
 def test_url_to_fs_path(url, expect):
-    new_path = git_org.url_to_fs_path('myroot', url)
+    new_path = git_org.url_to_fs_path(ROOT, url)
     assert expect == new_path
 
 
@@ -58,7 +60,7 @@ def _mk_repo(projects_root: str, repo_name: str,
 
 @pytest.fixture()
 def projects_root(request, tmpdir) -> str:
-    tmp_root = tmpdir.mkdir('myroot').strpath
+    tmp_root = tmpdir.mkdir(ROOT).strpath
     _mk_repo(tmp_root, 'myrepo', 'github.com:d6e/myrepo.git')
     _mk_repo(tmp_root, 'notrust', 'http://github.com/rust-lang/rust.git')
     _mk_repo(tmp_root, 'notrust2', 'http://github.com/rust-lang/rust2.git')
@@ -69,7 +71,8 @@ def projects_root(request, tmpdir) -> str:
 def _get_fs(projects_root: str) -> List[Tuple[str, List[str], List[str]]]:
     fs = []
     for path, dirs, files in os.walk(projects_root):
-        fs.append((path, dirs, files))
+        rel_path = ROOT + path.split(ROOT)[1]
+        fs.append((rel_path, dirs, files))
     return fs
 
 
@@ -78,25 +81,25 @@ def test_organize(projects_root, monkeypatch):
     monkeypatch.setattr(git_org, 'prompt_user_approval', lambda: True)
     monkeypatch.setattr(git_org, 'print_fs_changes', lambda x: x)
     expected = [
-        ('/private/var/folders/wn/c8618y6s5fb4vd0dmj3c0xnr0000gn/T/pytest-of-djenkins/pytest-25/test_organize0/myroot',
+        ('myroot',
          ['github.com', 'notrust2'], []),
-        ('/private/var/folders/wn/c8618y6s5fb4vd0dmj3c0xnr0000gn/T/pytest-of-djenkins/pytest-25/test_organize0/myroot/github.com',
+        ('myroot/github.com',
          ['d6e', 'rust-lang'], []),
-        ('/private/var/folders/wn/c8618y6s5fb4vd0dmj3c0xnr0000gn/T/pytest-of-djenkins/pytest-25/test_organize0/myroot/github.com/d6e',
+        ('myroot/github.com/d6e',
          ['myrepo'], []),
-        ('/private/var/folders/wn/c8618y6s5fb4vd0dmj3c0xnr0000gn/T/pytest-of-djenkins/pytest-25/test_organize0/myroot/github.com/d6e/myrepo',
+        ('myroot/github.com/d6e/myrepo',
          ['.git'], []),
-        ('/private/var/folders/wn/c8618y6s5fb4vd0dmj3c0xnr0000gn/T/pytest-of-djenkins/pytest-25/test_organize0/myroot/github.com/d6e/myrepo/.git',
+        ('myroot/github.com/d6e/myrepo/.git',
          [], ['config']),
-        ('/private/var/folders/wn/c8618y6s5fb4vd0dmj3c0xnr0000gn/T/pytest-of-djenkins/pytest-25/test_organize0/myroot/github.com/rust-lang',
+        ('myroot/github.com/rust-lang',
          ['rust'], []),
-        ('/private/var/folders/wn/c8618y6s5fb4vd0dmj3c0xnr0000gn/T/pytest-of-djenkins/pytest-25/test_organize0/myroot/github.com/rust-lang/rust',
+        ('myroot/github.com/rust-lang/rust',
          ['.git'], []),
-        ('/private/var/folders/wn/c8618y6s5fb4vd0dmj3c0xnr0000gn/T/pytest-of-djenkins/pytest-25/test_organize0/myroot/github.com/rust-lang/rust/.git',
+        ('myroot/github.com/rust-lang/rust/.git',
          [], ['config']),
-        ('/private/var/folders/wn/c8618y6s5fb4vd0dmj3c0xnr0000gn/T/pytest-of-djenkins/pytest-25/test_organize0/myroot/github.com/rust-lang/rust2',
+        ('myroot/github.com/rust-lang/rust2',
          ['.git'], []),
-        ('/private/var/folders/wn/c8618y6s5fb4vd0dmj3c0xnr0000gn/T/pytest-of-djenkins/pytest-25/test_organize0/myroot/github.com/rust-lang/rust2/.git',
+        ('myroot/github.com/rust-lang/rust2/.git',
          [], ['config'])
     ]
     pre_org_fs = _get_fs(projects_root)
