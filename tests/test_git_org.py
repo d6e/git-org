@@ -50,13 +50,15 @@ def test_url_to_fs_path(url, expect):
     assert expect == new_path
 
 
-@pytest.mark.parametrize("data, expected",
-                         [(['myroot/notrust', 'myroot/notrust2'],
-                           ['myroot/notrust', 'myroot/notrust2']),
-                          (['myroot/notrust2', 'myroot/notrust'],
-                           ['myroot/notrust', 'myroot/notrust2'])])
-def test_filter_nested_git_repos(data, expected):
+@pytest.mark.parametrize("data", [[''],
+                                  ['jfds'],
+                                  ['/myroot/a/long/path', '/myroot/a', '/myroot/a/long/path/longer'],
+                                  ['myroot/notrust', 'myroot/notrust2'],
+                                  ['myroot/notrust2', 'myroot/notrust']])
+def test_filter_nested_git_repos(data):
     result = git_org.filter_nested_git_repos(data)
+    expected = data.copy()
+    expected.sort()
     assert result == expected
 
 
@@ -92,16 +94,18 @@ def test_organize(projects_root, monkeypatch):
     """ An integration test for the organize command. Tests known edge-cases as well. """
     monkeypatch.setattr(git_org, 'prompt_user_approval', lambda: True)
     monkeypatch.setattr(git_org, 'print_fs_changes', lambda x: x)
-    expected = [('myroot', ['github.com'], []),
-                ('myroot/github.com', ['d6e', 'rust-lang'], []),
-                ('myroot/github.com/d6e', ['myrepo'], []),
-                ('myroot/github.com/d6e/myrepo', ['.git'], []),
-                ('myroot/github.com/d6e/myrepo/.git', [], ['config']),
-                ('myroot/github.com/rust-lang', ['rust', 'rust2'], []),
-                ('myroot/github.com/rust-lang/rust', ['.git'], []),
-                ('myroot/github.com/rust-lang/rust/.git', [], ['config']),
-                ('myroot/github.com/rust-lang/rust2', ['.git'], []),
-                ('myroot/github.com/rust-lang/rust2/.git', [], ['config'])]
+    expected = [('myroot', ['github.com'],
+                 []), ('myroot/github.com', ['d6e', 'rust-lang'],
+                       []), ('myroot/github.com/d6e', ['myrepo'],
+                             []), ('myroot/github.com/d6e/myrepo', ['.git'],
+                                   []), ('myroot/github.com/d6e/myrepo/.git',
+                                         [], ['config']),
+                ('myroot/github.com/rust-lang', ['rust', 'rust2'],
+                 []), ('myroot/github.com/rust-lang/rust', ['.git'], []),
+                ('myroot/github.com/rust-lang/rust/.git', [],
+                 ['config']), ('myroot/github.com/rust-lang/rust2', ['.git'],
+                               []), ('myroot/github.com/rust-lang/rust2/.git',
+                                     [], ['config'])]
     # pre_org_fs = _get_fs(projects_root)
     orgd = git_org.organize(projects_root)
     post_org_fs = _get_fs(projects_root)
