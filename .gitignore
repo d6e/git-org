@@ -4,3 +4,5 @@ __pycache__
 *.pyc
 .mypy_cache
 .cache
+coverage_html_report
+.coverage

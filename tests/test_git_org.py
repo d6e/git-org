@@ -1,7 +1,7 @@
 import os
 import pytest
 import shutil
-import git_org
+from git_org import git_org
 from typing import List, Tuple
 
 CONFIG = """
