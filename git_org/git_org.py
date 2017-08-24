@@ -4,6 +4,7 @@ import time
 import shutil
 import configparser
 import argparse
+import tempfile
 import logging
 import re
 from typing import Optional, Tuple, List
@@ -137,17 +138,6 @@ def print_fs_changes(fs_changes: List[Tuple[str, str]]) -> None:
     print('\n'.join([' -> '.join(rp) for rp in fs_changes]))
 
 
-def mv_to_tmp(projects_root: str, src: str) -> str:
-    """ Moves the directory to a temporary staging directory that is created if it doesn't exist. """
-    timestamp = int(time.time())
-    tmp_dirname = "git-org-unresolved-{}".format(timestamp)
-    tmp_path = os.path.join(projects_root, tmp_dirname)
-    if not os.path.isdir(tmp_path):
-        os.makedirs(tmp_path)
-    shutil.move(src, tmp_path)
-    return os.path.join(tmp_path, os.path.basename(src))
-
-
 def determine_fs_changes(projects_root: str, git_repos: List[str]) -> List[Tuple[str, str]]:
     fs_changes = []
     for repo in git_repos:
@@ -203,7 +193,10 @@ def organize(projects_root: str, dry_run: bool=False) -> None:
                 logging.warning("Git repo '%s' already exists, not moving...", dst)
             else:
                 logging.info("Moving '%s' to '%s'", src, dst)
-                shutil.move(src, dst)
+                with tempfile.TemporaryDirectory() as tmp_dir:
+                    tmp_src = os.path.join(tmp_dir, os.path.basename(src))
+                    shutil.move(src, tmp_src)
+                    shutil.move(tmp_src, dst)
                 # shutil.copytree(src, dst, symlinks=True)
                 # if move:
                 #     # Copy first, then move to cautiously prevent lost data if a move fails.

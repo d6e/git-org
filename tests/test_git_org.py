@@ -106,8 +106,6 @@ def test_organize(projects_root, monkeypatch):
                  ['config']), ('myroot/github.com/rust-lang/rust2', ['.git'],
                                []), ('myroot/github.com/rust-lang/rust2/.git',
                                      [], ['config'])]
-    # pre_org_fs = _get_fs(projects_root)
     orgd = git_org.organize(projects_root)
     post_org_fs = _get_fs(projects_root)
     assert post_org_fs == expected
-    # pytest.set_trace()
