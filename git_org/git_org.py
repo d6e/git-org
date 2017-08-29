@@ -1,13 +1,12 @@
 import os
 import sys
-import time
 import shutil
 import configparser
 import argparse
 import tempfile
 import logging
 import re
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple, List, Generator, Dict, Any
 
 
 logging.basicConfig(level=logging.DEBUG,
@@ -32,19 +31,22 @@ def parse_cli() -> Tuple[str, str, bool, bool]:
 
     subparsers = parser.add_subparsers(dest="subparser_name")  # this line changed
     clone_parser = subparsers.add_parser(STR_CLONE, help='Will clone a repo according to the organization.')
-    clone_parser.add_argument('url', help='The git remote origin url.')
-    org_parser = subparsers.add_parser(STR_ORGANIZE, help=organize_help)
-    org_parser.add_argument('-d', '--dry-run', action="store_true", default=False,
-                            help='Will print what actions would be taken.')
-    org_parser.add_argument('projects_root',
-                            type=str, action="store", default='.',
-                            help='The root directory where your git repos are stored.')
+    clone_parser.add_argument('-p', '--projects_root',
+                              type=str, action="store", default='.',
+                              help='The root directory where your git repos are stored.')
+    clone_parser.add_argument('url', type=str, help='The git remote origin url.')
+    organize_parser = subparsers.add_parser(STR_ORGANIZE, help=organize_help)
+    organize_parser.add_argument('-d', '--dry-run', action="store_true", default=False,
+                                 help='Will print what actions would be taken.')
+    organize_parser.add_argument('projects_root',
+                                 type=str, action="store", default='.',
+                                 help='The root directory where your git repos are stored.')
 
     if len(sys.argv) <= 1:
         parser.print_help()
         sys.exit(0)
-    args = parser.parse_args()
-    return str(args.subparser_name), str(args.projects_root), bool(args.dry_run)
+    args = vars(parser.parse_args())
+    return args
 
 
 def _read_git_config(git_repo_path: str) -> configparser.RawConfigParser:
@@ -64,7 +66,7 @@ def _extract_origin_url(config: configparser.RawConfigParser, repo_path: str) ->
 
 
 def _is_sublist(lst1: List[str], lst2: List[str]) -> bool:
-    def get_all_in(one, another):
+    def get_all_in(one: List[str], another: List[str]) -> Generator[str]:
         for element in one:
             if element in another:
                 yield element
@@ -72,6 +74,7 @@ def _is_sublist(lst1: List[str], lst2: List[str]) -> bool:
     for x1, x2 in zip(get_all_in(lst1, lst2), get_all_in(lst2, lst1)):
         if x1 != x2:
             return False
+    return True
 
 
 def filter_nested_git_repos(git_repos: List[str]) -> List[str]:
@@ -154,7 +157,7 @@ def prompt_user_approval() -> bool:
     return input("\nAccept? [y/N]").lower() in ['y', 'yes']
 
 
-def organize(projects_root: str, dry_run: bool=False) -> None:
+def organize(projects_root: str, dry_run: bool=False, **kwargs: Dict[str, object]) -> None:
     """ The 'organize' command does the following:
     1. Finds all git repos under the provided root (not including nested git repos).
     2. Reads and parses the git config of each git repo to determine the destination path.
@@ -203,17 +206,21 @@ def organize(projects_root: str, dry_run: bool=False) -> None:
                 #     shutil.rmtree(src)
 
 
-def clone(projects_root: str, dry_run: bool) -> None:
-    pass
+def clone(projects_root: str, url: str, dry_run: bool=False, **kwargs) -> None:
+    fs_path = url_to_fs_path(projects_root, url)
+    os.makedirs(os.path.dirname(fs_path))
+    cmd = 'git clone {} {}'.format(url, fs_path)
+    print(cmd)
+    os.system(cmd)
 
 
 def main() -> None:
-    subparser_name, projects_root, dry_run = parse_cli()
     subcommand = {
         STR_CLONE: clone,
         STR_ORGANIZE: organize,
     }
-    subcommand[subparser_name](projects_root, dry_run)
+    args = parse_cli()
+    subcommand[args['subparser_name']](**args)
 
 
 if __name__ == "__main__":

@@ -10,6 +10,6 @@ setuptools.setup(
     install_requires=[],
     url="https://github.com/d6e/git-org",
     entry_points={
-            "console_scripts": ["git-org = git_org:main"]
+            "console_scripts": ["git-org = git_org.git_org:main"]
     }
 )
