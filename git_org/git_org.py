@@ -84,11 +84,6 @@ def filter_nested_git_repos(git_repos: List[str]) -> List[str]:
         for parent in git_parents:
             split_parent = parent.split('/')
             split_repo = repo.split('/')
-            # if 'rust' in parent:
-            # import pdb;pdb.set_trace()
-            # for i in range(len(split_parent)):
-            #     if split_repo[i] != split_parent[i]:
-
             if _is_sublist(split_repo, split_parent):
                 append = False
         if append:
@@ -199,10 +194,6 @@ def organize(projects_root: str, dry_run: bool=False, **kwargs: Dict[str, object
                     tmp_src = os.path.join(tmp_dir, os.path.basename(src))
                     shutil.move(src, tmp_src)
                     shutil.move(tmp_src, dst)
-                # shutil.copytree(src, dst, symlinks=True)
-                # if move:
-                #     # Copy first, then move to cautiously prevent lost data if a move fails.
-                #     shutil.rmtree(src)
 
 
 def clone(projects_root: str, url: str, dry_run: bool=False, **kwargs) -> None:
