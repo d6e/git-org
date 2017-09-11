@@ -20,7 +20,7 @@ def is_git_repo(x: str) -> bool:
     return os.path.isdir(os.path.join(x, '.git')) and '.git' in os.listdir(x)
 
 
-def parse_cli() -> Tuple[str, str, bool, bool]:
+def parse_cli() -> Dict[str, Any]:
     organize_help = """Looks through the 1st-level of directories in the
                   'projects root' for any git repos and relocates them
                   to a new directory tree based on their git repo's
@@ -216,12 +216,11 @@ def clone(projects_root: str, url: str, dry_run: bool=False, **kwargs: Dict) -> 
 
 
 def main() -> None:
-    subcommand = {
-        STR_CLONE: clone,
-        STR_ORGANIZE: organize,
-    }
-    args = parse_cli()
-    subcommand[args['subparser_name']](**args)
+    args = parse_cli()  # type: Dict[str, Any]
+    if args['subparser_name'] == STR_CLONE:
+        clone(**args)
+    elif args['subparser_name'] == STR_ORGANIZE:
+        organize(**args)
 
 
 if __name__ == "__main__":
