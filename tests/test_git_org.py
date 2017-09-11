@@ -20,6 +20,16 @@ CONFIG = """
         merge = refs/heads/master
 """
 
+config_no_origin = """
+[core]
+    repositoryformatversion = 0
+    filemode = true
+    bare = false
+    logallrefupdates = true
+    ignorecase = true
+    precomposeunicode = true
+"""
+
 ROOT = 'myroot'
 
 
@@ -61,12 +71,12 @@ def test_filter_nested_git_repos(data, expected):
 
 
 def _mk_repo(projects_root: str, repo_name: str,
-             origin_remote_url: str) -> str:
+             origin_remote_url: str, config: str=CONFIG) -> str:
     git_config_dir = os.path.join(projects_root, repo_name, '.git')
     os.makedirs(git_config_dir)
     config_path = os.path.join(git_config_dir, 'config')
     with open(config_path, 'w') as f:
-        f.write(CONFIG.format(url=origin_remote_url))
+        f.write(config.format(url=origin_remote_url))
     return config_path
 
 
@@ -76,6 +86,7 @@ def projects_root(request, tmpdir) -> str:
     _mk_repo(tmp_root, 'myrepo', 'github.com:d6e/myrepo.git')
     _mk_repo(tmp_root, 'notrust', 'http://github.com/rust-lang/rust.git')
     _mk_repo(tmp_root, 'notrust2', 'http://github.com/rust-lang/rust2.git')
+    _mk_repo(tmp_root, 'no-origin', 'http://github.com/rust-lang/no-origin.git', config=config_no_origin)
     request.addfinalizer(lambda: shutil.rmtree(tmp_root))
     return tmp_root
 
@@ -92,18 +103,19 @@ def test_organize(projects_root, monkeypatch):
     """ An integration test for the organize command. Tests known edge-cases as well. """
     monkeypatch.setattr(git_org, 'prompt_user_approval', lambda: True)
     monkeypatch.setattr(git_org, 'print_fs_changes', lambda x: x)
-    expected = [('myroot', ['github.com'],
-                 []), ('myroot/github.com', ['d6e', 'rust-lang'],
-                       []), ('myroot/github.com/d6e', ['myrepo'],
-                             []), ('myroot/github.com/d6e/myrepo', ['.git'],
-                                   []), ('myroot/github.com/d6e/myrepo/.git',
-                                         [], ['config']),
-                ('myroot/github.com/rust-lang', ['rust', 'rust2'],
-                 []), ('myroot/github.com/rust-lang/rust', ['.git'], []),
-                ('myroot/github.com/rust-lang/rust/.git', [],
-                 ['config']), ('myroot/github.com/rust-lang/rust2', ['.git'],
-                               []), ('myroot/github.com/rust-lang/rust2/.git',
-                                     [], ['config'])]
+    expected = [('myroot', ['github.com', 'no-origin'], []),
+                ('myroot/github.com', ['d6e', 'rust-lang'], []),
+                ('myroot/github.com/d6e', ['myrepo'], []),
+                ('myroot/github.com/d6e/myrepo', ['.git'], []),
+                ('myroot/github.com/d6e/myrepo/.git', [], ['config']),
+                ('myroot/github.com/rust-lang', ['rust', 'rust2'], []),
+                ('myroot/github.com/rust-lang/rust', ['.git'], []),
+                ('myroot/github.com/rust-lang/rust/.git', [], ['config']),
+                ('myroot/github.com/rust-lang/rust2', ['.git'], []),
+                ('myroot/github.com/rust-lang/rust2/.git', [], ['config']),
+                ('myroot/no-origin', ['.git'], []),
+                ('myroot/no-origin/.git', [], ['config'])
+                ]
     orgd = git_org.organize(projects_root)
     post_org_fs = _get_fs(projects_root)
     assert post_org_fs == expected
