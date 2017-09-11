@@ -107,3 +107,26 @@ def test_organize(projects_root, monkeypatch):
     orgd = git_org.organize(projects_root)
     post_org_fs = _get_fs(projects_root)
     assert post_org_fs == expected
+
+
+@pytest.mark.parametrize("paths", [("my/same/path/repo1", "my/same/path/repo1"),
+                                   ("my/same/path/repo1", "my/same/path1/repo1"),
+                                   ("my/same/path/repo1", "my/same/path/repo2")])
+def test__ensure_dir_exists(projects_root, paths):
+    """ Checks that no exceptions are raised when similar paths are created
+    and that the procedure is in fact performing the desired filesystem
+    changes. """
+    assert not os.path.isdir(os.path.join(projects_root, paths[0]))
+    assert not os.path.isdir(os.path.join(projects_root, paths[1]))
+    git_org._ensure_dir_exists(os.path.join(projects_root, paths[0]))
+    git_org._ensure_dir_exists(os.path.join(projects_root, paths[1]))
+    assert os.path.isdir(os.path.join(projects_root, paths[0]))
+    assert os.path.isdir(os.path.join(projects_root, paths[1]))
+
+
+def test_clone_same_parent(projects_root, monkeypatch):
+    """ An integration test for the clone command. Checks for bug where it
+    fails if the paths they share are the same. """
+    monkeypatch.setattr(git_org, '_clone', lambda x, y: None)
+    git_org.clone(projects_root, 'git@github.com:my/same/path/repo1.git')
+    git_org.clone(projects_root, 'git@github.com:my/same/path/repo2.git')

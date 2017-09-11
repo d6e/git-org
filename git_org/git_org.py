@@ -183,7 +183,7 @@ def organize(projects_root: str, dry_run: bool=False, **kwargs: Dict[str, object
             parent_dir = os.path.dirname(dst)
 
             if not os.path.isdir(parent_dir):
-                os.makedirs(parent_dir)
+                _ensure_dir_exists(parent_dir)
             else:
                 logging.info("Repo destination path '%s' already exists, not creating it.", dst)
             if is_git_repo(dst):
@@ -196,12 +196,23 @@ def organize(projects_root: str, dry_run: bool=False, **kwargs: Dict[str, object
                     shutil.move(tmp_src, dst)
 
 
-def clone(projects_root: str, url: str, dry_run: bool=False, **kwargs) -> None:
-    fs_path = url_to_fs_path(projects_root, url)
-    os.makedirs(os.path.dirname(fs_path))
+def _clone(url: str, fs_path: str) -> None:
     cmd = 'git clone {} {}'.format(url, fs_path)
     print(cmd)
     os.system(cmd)
+
+
+def _ensure_dir_exists(path: str) -> None:
+    try:
+        os.makedirs(path)
+    except FileExistsError as e:  # ignore cases where path exists
+        pass
+
+
+def clone(projects_root: str, url: str, dry_run: bool=False, **kwargs: Dict) -> None:
+    fs_path = url_to_fs_path(projects_root, url)
+    _ensure_dir_exists(os.path.dirname(fs_path))
+    _clone(url, fs_path)
 
 
 def main() -> None:
