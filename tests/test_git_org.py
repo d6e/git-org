@@ -50,15 +50,13 @@ def test_url_to_fs_path(url, expect):
     assert expect == new_path
 
 
-@pytest.mark.parametrize("data", [[''],
-                                  ['jfds'],
-                                  ['/myroot/a/long/path', '/myroot/a', '/myroot/a/long/path/longer'],
-                                  ['myroot/notrust', 'myroot/notrust2'],
-                                  ['myroot/notrust2', 'myroot/notrust']])
-def test_filter_nested_git_repos(data):
+@pytest.mark.parametrize("data, expected", [([''], ['']),
+                                            (['jfds'], ['jfds']),
+                                            (['/myroot/a/long/path', '/myroot/a', '/myroot/a/long/path/longer'], ['/myroot/a']),
+                                            (['myroot/notrust', 'myroot/notrust2'], ['myroot/notrust', 'myroot/notrust2']),
+                                            (['myroot/notrust2', 'myroot/notrust'], ['myroot/notrust', 'myroot/notrust2'])])
+def test_filter_nested_git_repos(data, expected):
     result = git_org.filter_nested_git_repos(data)
-    expected = data.copy()
-    expected.sort()
     assert result == expected
 
 

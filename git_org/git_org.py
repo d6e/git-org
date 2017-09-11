@@ -66,15 +66,14 @@ def _extract_origin_url(config: configparser.RawConfigParser, repo_path: str) ->
 
 
 def _is_sublist(lst1: List[str], lst2: List[str]) -> bool:
-    def get_all_in(one: List[str], another: List[str]) -> Generator[str]:
-        for element in one:
-            if element in another:
-                yield element
-
-    for x1, x2 in zip(get_all_in(lst1, lst2), get_all_in(lst2, lst1)):
-        if x1 != x2:
-            return False
-    return True
+    ''' Returns true if the lst1 is a sublist of list2. '''
+    is_sublist = True
+    for i, d in enumerate(lst2):
+        if d == lst1[i]:
+            is_sublist = True
+        else:
+            is_sublist = False
+    return is_sublist
 
 
 def filter_nested_git_repos(git_repos: List[str]) -> List[str]:
