@@ -5,11 +5,12 @@ import configparser
 import argparse
 import tempfile
 import logging
+import git
 import re
-from typing import Optional, Tuple, List, Generator, Dict, Any
+from typing import Optional, Tuple, List, Dict, Any
 
 
-logging.basicConfig(level=logging.DEBUG,
+logging.basicConfig(level=logging.WARNING,
                     format='%(asctime)s %(levelname)s %(message)s')
 
 STR_CLONE = 'clone'
@@ -197,9 +198,12 @@ def organize(projects_root: str, dry_run: bool=False, **kwargs: Dict[str, object
 
 
 def _clone(url: str, fs_path: str) -> None:
-    cmd = 'git clone {} {}'.format(url, fs_path)
-    print(cmd)
-    os.system(cmd)
+    if os.path.isdir(fs_path):
+        logging.warning("The git repo path '{}' already exists.".format(fs_path))
+        sys.exit(1)
+    logging.info("Cloning '%s' to path '%s'.", url, fs_path)
+    git.Repo.clone_from(url, fs_path, branch='master')
+    print("The repo '{}' has been cloned to '{}'.".format(url, fs_path))
 
 
 def _ensure_dir_exists(path: str) -> None:
