@@ -10,9 +10,6 @@ import re
 from typing import Optional, Tuple, List, Dict, Any
 
 
-logging.basicConfig(level=logging.WARNING,
-                    format='%(asctime)s %(levelname)s %(message)s')
-
 STR_CLONE = 'clone'
 STR_ORGANIZE = 'organize'
 
@@ -29,7 +26,9 @@ def parse_cli() -> Dict[str, Any]:
     description = "A tool for organizing git repos on your local filesystem."
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument('-d', '--dry-run', action="store_true", default=False,
-                        help='Will print what actions would be taken.')
+                        help='will print what actions would be taken.')
+    parser.add_argument("-v", "--verbose", help="increase output verbosity",
+                        action="store_true")
     subparsers = parser.add_subparsers(dest="subparser_name")  # this line changed
     clone_parser = subparsers.add_parser(STR_CLONE, help='Will clone a repo according to the organization.')
     clone_parser.add_argument('projects_root',
@@ -44,8 +43,7 @@ def parse_cli() -> Dict[str, Any]:
     if len(sys.argv) <= 1:
         parser.print_help()
         sys.exit(0)
-    args = vars(parser.parse_args())
-    return args
+    return vars(parser.parse_args())
 
 
 def _read_git_config(git_repo_path: str) -> configparser.RawConfigParser:
@@ -160,7 +158,7 @@ def organize(projects_root: str, dry_run: bool=False, **kwargs: Dict[str, object
     logging.info("Using projects_root: %s", projects_root)
     git_repos = find_git_repos(projects_root)
     git_repos = filter_nested_git_repos(git_repos)
-    logging.info("Found the following non-nested repos: %s", git_repos)
+    logging.info("Found the following non-nested repos: %s", '\n'.join(git_repos))
     if len(git_repos) == 0:
         print("No git repos found. Maybe change your 'projects_root'? (projects_root='{}')".format(projects_root))
         sys.exit(0)
@@ -170,7 +168,7 @@ def organize(projects_root: str, dry_run: bool=False, **kwargs: Dict[str, object
     # Filter any non-changes
     fs_changes = list(filter(lambda x: x[0] != x[1], new_and_old_paths))
 
-    print("The proposed filesystem changes:\n")
+    print("\nThe proposed filesystem changes:\n")
     print_fs_changes(fs_changes)
     if dry_run:
         print("\nDRY_RUN mode enabled. No action taken.")
@@ -226,6 +224,10 @@ def clone(projects_root: str, url: str, dry_run: bool=False, **kwargs: Dict) -> 
 
 def main() -> None:
     args = parse_cli()  # type: Dict[str, Any]
+    if args['verbose']:
+        logging.basicConfig(level=logging.DEBUG)
+    else:
+        logging.basicConfig(level=logging.WARNING)
     if args['subparser_name'] == STR_CLONE:
         clone(**args)
     elif args['subparser_name'] == STR_ORGANIZE:
