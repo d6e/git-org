@@ -34,6 +34,7 @@ def test_url_to_fs_path(url, expect, root_name):
 @pytest.mark.parametrize("data, expected", [([''], ['']),
                                             (['jfds'], ['jfds']),
                                             (['/myroot/a/long/path', '/myroot/a', '/myroot/a/long/path/longer'], ['/myroot/a']),
+                                            (['src/10.222.28.136/test', 'src/Xastir'], ['src/10.222.28.136/test', 'src/Xastir']),  # Fails to sorting
                                             (['myroot/notrust', 'myroot/notrust2'], ['myroot/notrust', 'myroot/notrust2']),
                                             (['myroot/notrust2', 'myroot/notrust'], ['myroot/notrust', 'myroot/notrust2'])])
 def test_filter_nested_git_repos(data, expected):
