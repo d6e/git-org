@@ -60,7 +60,7 @@ def _extract_origin_url(config: configparser.RawConfigParser, repo_path: str) ->
     if origin_section in config.sections():
         return config.get('remote "origin"', 'url')
     else:
-        logging.warning("No origin found for '%s'", repo_path)
+        logging.warning("No origin found for '%s'. Doing nothing.", repo_path)
         return None
 
 
@@ -173,7 +173,7 @@ def organize(projects_root: str, dry_run: bool=False, **kwargs: Dict[str, object
     print("The proposed filesystem changes:\n")
     print_fs_changes(fs_changes)
     if dry_run:
-        print("DRY_RUN mode enabled. No action taken.")
+        print("\nDRY_RUN mode enabled. No action taken.")
         sys.exit(0)
     else:
         answer = prompt_user_approval()
@@ -193,6 +193,8 @@ def organize(projects_root: str, dry_run: bool=False, **kwargs: Dict[str, object
                     tmp_src = os.path.join(tmp_dir, os.path.basename(src))
                     shutil.move(src, tmp_src)
                     shutil.move(tmp_src, dst)
+    else:
+        print("Bye.")
 
 
 def _clone(url: str, fs_path: str) -> None:
