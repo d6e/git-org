@@ -23,24 +23,22 @@ def is_git_repo(x: str) -> bool:
 
 def parse_cli() -> Dict[str, Any]:
     organize_help = """Looks through the 1st-level of directories in the
-                  'projects root' for any git repos and relocates them
-                  to a new directory tree based on their git repo's
-                  origin url.
+                  'PROJECTS_ROOT' directory for any git repos and relocates them
+                  to a new directory tree based on their git repo's origin url.
                   """
     description = "A tool for organizing git repos on your local filesystem."
     parser = argparse.ArgumentParser(description=description)
-
+    parser.add_argument('-d', '--dry-run', action="store_true", default=False,
+                        help='Will print what actions would be taken.')
     subparsers = parser.add_subparsers(dest="subparser_name")  # this line changed
     clone_parser = subparsers.add_parser(STR_CLONE, help='Will clone a repo according to the organization.')
-    clone_parser.add_argument('-p', '--projects_root',
-                              type=str, action="store", default='.',
+    clone_parser.add_argument('projects_root',
+                              type=str, action="store", default='.', metavar='PROJECTS_ROOT',
                               help='The root directory where your git repos are stored.')
     clone_parser.add_argument('url', type=str, help='The git remote origin url.')
     organize_parser = subparsers.add_parser(STR_ORGANIZE, help=organize_help)
-    organize_parser.add_argument('-d', '--dry-run', action="store_true", default=False,
-                                 help='Will print what actions would be taken.')
     organize_parser.add_argument('projects_root',
-                                 type=str, action="store", default='.',
+                                 type=str, action="store", default='.', metavar='PROJECTS_ROOT',
                                  help='The root directory where your git repos are stored.')
 
     if len(sys.argv) <= 1:
