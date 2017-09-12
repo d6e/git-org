@@ -191,6 +191,7 @@ def organize(projects_root: str, dry_run: bool=False, **kwargs: Dict[str, object
                     tmp_src = os.path.join(tmp_dir, os.path.basename(src))
                     shutil.move(src, tmp_src)
                     shutil.move(tmp_src, dst)
+        print("Done.")
     else:
         print("Bye.")
 
