@@ -4,8 +4,6 @@ from git_org import git_org
 from typing import List, Tuple
 
 
-
-
 @pytest.mark.parametrize(
     "url, expect",
     [
@@ -41,36 +39,6 @@ def test_url_to_fs_path(url, expect, root_name):
 def test_filter_nested_git_repos(data, expected):
     result = git_org.filter_nested_git_repos(data)
     assert result == expected
-
-
-def _get_fs(root_name: str, projects_root: str) -> List[Tuple[str, List[str], List[str]]]:
-    fs = []
-    for path, dirs, files in os.walk(projects_root):
-        rel_path = root_name + path.split(root_name)[1]
-        fs.append((rel_path, dirs, files))
-    return fs
-
-
-def test_organize(projects_root, monkeypatch, root_name):
-    """ An integration test for the organize command. Tests known edge-cases as well. """
-    monkeypatch.setattr(git_org, 'prompt_user_approval', lambda: True)
-    monkeypatch.setattr(git_org, 'print_fs_changes', lambda x: x)
-    expected = [('myroot', ['github.com', 'no-origin'], []),
-                ('myroot/github.com', ['d6e', 'rust-lang'], []),
-                ('myroot/github.com/d6e', ['myrepo'], []),
-                ('myroot/github.com/d6e/myrepo', ['.git'], []),
-                ('myroot/github.com/d6e/myrepo/.git', [], ['config']),
-                ('myroot/github.com/rust-lang', ['rust', 'rust2'], []),
-                ('myroot/github.com/rust-lang/rust', ['.git'], []),
-                ('myroot/github.com/rust-lang/rust/.git', [], ['config']),
-                ('myroot/github.com/rust-lang/rust2', ['.git'], []),
-                ('myroot/github.com/rust-lang/rust2/.git', [], ['config']),
-                ('myroot/no-origin', ['.git'], []),
-                ('myroot/no-origin/.git', [], ['config'])
-                ]
-    orgd = git_org.organize(projects_root)
-    post_org_fs = _get_fs(root_name, projects_root)
-    assert post_org_fs == expected
 
 
 @pytest.mark.parametrize("paths", [("my/same/path/repo1", "my/same/path/repo1"),

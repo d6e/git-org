@@ -173,7 +173,8 @@ def organize(projects_root: str, dry_run: bool=False, **kwargs: Dict[str, object
     print("The proposed filesystem changes:\n")
     print_fs_changes(fs_changes)
     if dry_run:
-        answer = False
+        print("DRY_RUN mode enabled. No action taken.")
+        sys.exit(0)
     else:
         answer = prompt_user_approval()
     if answer:
@@ -212,8 +213,13 @@ def _ensure_dir_exists(path: str) -> None:
 
 def clone(projects_root: str, url: str, dry_run: bool=False, **kwargs: Dict) -> None:
     fs_path = url_to_fs_path(projects_root, url)
-    _ensure_dir_exists(os.path.dirname(fs_path))
-    _clone(url, fs_path)
+    if dry_run:
+        print("DRY_RUN mode enabled. No action taken.")
+        print("The remote repo '{}' would be cloned to '{}'.".format(url, fs_path))
+        sys.exit(0)
+    else:
+        _ensure_dir_exists(os.path.dirname(fs_path))
+        _clone(url, fs_path)
 
 
 def main() -> None:
