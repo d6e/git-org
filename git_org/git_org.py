@@ -167,10 +167,10 @@ def organize(projects_root: str, dry_run: bool=False, **kwargs: Dict[str, object
         print("No git repos found. Maybe change your 'projects_root'? (projects_root='{}')".format(projects_root))
         sys.exit(0)
     # Read each git repo and determine the destination path by parsing the git remote origin
-    fs_changes = determine_fs_changes(projects_root, git_repos)
+    new_and_old_paths = determine_fs_changes(projects_root, git_repos)
 
     # Filter any non-changes
-    fs_changes = list(filter(lambda x: x[0] != x[1], fs_changes))
+    fs_changes = list(filter(lambda x: x[0] != x[1], new_and_old_paths))
 
     print("The proposed filesystem changes:\n")
     print_fs_changes(fs_changes)
@@ -182,7 +182,6 @@ def organize(projects_root: str, dry_run: bool=False, **kwargs: Dict[str, object
         for fs_change in fs_changes:
             src, dst = fs_change
             parent_dir = os.path.dirname(dst)
-
             if not os.path.isdir(parent_dir):
                 _ensure_dir_exists(parent_dir)
             else:
